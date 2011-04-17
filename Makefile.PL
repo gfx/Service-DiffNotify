@@ -29,7 +29,7 @@ requires 'Growl::Any';
 requires 'Filesys::Notify::Simple';
 requires 'Algorithm::Diff';
 requires 'Text::Extract::Word';
-requires 'lib::xi';
+requires 'Log::Minimal;
 
 test_requires 'Test::More' => '0.88';
 

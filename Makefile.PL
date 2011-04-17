@@ -1,50 +1,55 @@
 use strict;
 use warnings;
-BEGIN {
-    unshift @INC, 'inc';
 
-    # author requires, or bundled modules
-    my @devmods = qw(
-        inc::Module::Install             1.00
-        Module::Install::AuthorTests     0.002
-        Module::Install::Repository      0.06
-    );
-    my @not_available;
-    while(my($mod, $ver) = splice @devmods, 0, 2) {
-        eval qq{use $mod $ver (); 1} or push @not_available, $mod;
-    }
-    if(@not_available) {
-        print qq{# The following modules are not available.\n};
-        print qq{# `perl $0 | cpanm` will install them:\n};
-        print $_, "\n" for @not_available;
-        exit 1;
-     }
-}
-use inc::Module::Install;
+BEGIN { require 5.008_001; }
 
-all_from 'lib/Service/DiffNotify.pm';
+use ExtUtils::MakeMaker 6.31;
 
-requires 'Mouse';
-requires 'Growl::Any';
-requires 'Filesys::Notify::Simple';
-requires 'Algorithm::Diff';
-requires 'Text::Extract::Word';
-requires 'Log::Minimal;
+my $all_from = 'lib/Service/DiffNotify.pm';
+my %WriteMakefileArgs = (
+  'AUTHOR' => 'Fuji, Goro (gfx) <gfuji@cpan.org>',
+  'VERSION_FROM' => $all_from,
+  'ABSTRACT_FROM' => $all_from,
 
-test_requires 'Test::More' => '0.88';
-
-auto_set_repository;
-
-tests_recursive;
-author_tests 'xt';
-
-
-clean_files qw(
-    Service-DiffNotify-*
-    *.stackdump
-    cover_db *.gcov *.gcda *.gcno
-    nytprof
-    *.out
+  'BUILD_REQUIRES' => {
+    'Test::More' => '0.88'
+  },
+  'CONFIGURE_REQUIRES' => {
+    'ExtUtils::MakeMaker' => '6.31'
+  },
+  'DISTNAME' => 'Service-DiffNotify',
+  'EXE_FILES' => ['script/niff.pl'],
+  'LICENSE' => 'perl',
+  'NAME' => 'Service::DiffNotify',
+  'PREREQ_PM' => {
+    'Mouse'                   => '0.90',
+    'Growl::Any'              => '0.07',
+    'Log::Minimal'            => '0.04',
+    'Filesys::Notify::Simple' => '0.07',
+    'Algorithm::Diff'         => '1.19',
+    'Text::Extract::Word'     => '0.02',
+  },
+  'test' => {
+    'TESTS' => 't/*.t'
+  }
 );
 
-WriteAll(check_nmake => 0);
+
+unless ( eval { ExtUtils::MakeMaker->VERSION(6.56) } ) {
+  my $br = delete $WriteMakefileArgs{BUILD_REQUIRES};
+  my $pp = $WriteMakefileArgs{PREREQ_PM};
+  for my $mod ( keys %$br ) {
+    if ( exists $pp->{$mod} ) {
+      $pp->{$mod} = $br->{$mod} if $br->{$mod} > $pp->{$mod};
+    }
+    else {
+      $pp->{$mod} = $br->{$mod};
+    }
+  }
+}
+
+delete $WriteMakefileArgs{CONFIGURE_REQUIRES}
+  unless eval { ExtUtils::MakeMaker->VERSION(6.52) };
+
+WriteMakefile(%WriteMakefileArgs);
+

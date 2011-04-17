@@ -56,7 +56,9 @@ has growler => (
     isa      => 'Object',
     handles  => [qw(notify)],
     default  => sub {
-        return Growl::Any->new(__PACKAGE__, ['chnaged']);
+        return Growl::Any->new(
+            appname => __PACKAGE__,
+            events  => ['changed']);
     },
     lazy     => 1,
 );
@@ -72,6 +74,7 @@ sub run {
             my $path = $event->{path};
             my $diff = $self->changed($path) or next;
 
+            infof 'changed: %s', $path;
             $self->notify(changed => $path, $diff);
         }
     }) while 1;

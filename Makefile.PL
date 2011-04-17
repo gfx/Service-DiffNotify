@@ -24,10 +24,12 @@ use inc::Module::Install;
 
 all_from 'lib/Service/DiffNotify.pm';
 
-requires 'lib::xi';
+requires 'Mouse';
 requires 'Growl::Any';
 requires 'Filesys::Notify::Simple';
-requires 'Mouse';
+requires 'Algorithm::Diff';
+requires 'Text::Extract::Word';
+requires 'lib::xi';
 
 test_requires 'Test::More' => '0.88';
 

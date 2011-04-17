@@ -4,16 +4,41 @@ use Mouse;
 
 our $VERSION = '0.01';
 
-use Algorithm::Diff;
+use Algorithm::Diff qw(diff);
 use Filesys::Notify::Simple;
 use Growl::Any;
+use File::Find qw(find);
+use File::Spec;
+use Text::Extract::Word;
 
-#use Text::Extract::Word;
+use Log::Minimal qw(infof warnf debugf);
+
+my %ft_map = ( # file type mapping
+    (map { $_ => 'text' }
+        qw(
+            .txt .html .htm .xml .css .js
+            .tx .tt .tmpl .tpl
+            .pl .pm .pod .xs .ep
+            .rb .erb .py  .php
+            .hs .c .cpp .cxx .h .hpp .hxx
+
+           readme changes changelog install makefile
+        )
+    ),
+
+    '.doc' => 'word',
+);
 
 has dir => (
     is       => 'rw',
     isa      => 'Str',
     required => 1,
+);
+
+has snapshot => (
+    is       => 'rw',
+    isa      => 'HashRef',
+    init_arg => undef,
 );
 
 has watcher => (
@@ -36,49 +61,109 @@ has growler => (
     lazy     => 1,
 );
 
-has ignore_files => (
-    is       => 'rw',
-    isa      => 'ArrayRef',
-    default  => sub {
-        return [
-            qr/ \. (?: sw[px] | old | bak) \z/xms,
-            qr/     ~  \z     /xms,
-            qr{  [/\\] \.git  }xms,
-            qr/     \d \z     /xms, # vim working files
-        ];
-    },
-);
-
-sub in_ignore_files {
-    my($self, $path) = @_;
-
-    foreach my $rx(@{ $self->ignore_files }) {
-        return 1 if $path =~ $rx;
-    }
-    return 0;
-}
-
 sub run {
     my($self) = @_;
 
+    $self->make_snapshot( $self->dir );
+
+    infof 'watching';
     $self->watcher->wait(sub {
         foreach my $event(@_) {
             my $path = $event->{path};
-            next if $self->in_ignore_files($path);
+            my $diff = $self->changed($path) or next;
 
-            $self->notify(changed => 'File changed', $path);
+            $self->notify(changed => $path, $diff);
         }
     }) while 1;
 
 }
 
+sub guess_file_type {
+    my($self, $path) = @_;
+    foreach my $pat(keys %ft_map) {
+        if( $path =~ / \Q$pat\E  \z/xmsi ) {
+            return $ft_map{$pat};
+        }
+    }
+    return undef;
+}
+
+sub make_snapshot {
+    my($self, $dir) = @_;
+    my $snapshot = {};
+    infof 'make_snapshot: %s', $dir;
+    find sub {
+        return if -d $_;
+        my $type = $self->guess_file_type($_) or return;
+        debugf '%s: %s', $type, $_;
+
+        my $file = File::Spec->rel2abs($_);
+        $snapshot->{ $file } = [ $type, $self->slurp($file, $type) ];
+        return;
+    }, $dir;
+    $self->snapshot($snapshot);
+    return;
+}
+
+sub slurp {
+    my($self, $file, $type) = @_;
+
+    if($type eq 'word' && -s $file) {
+        return eval {
+            my $doc = Text::Extract::Word->new($file);
+            return $doc->get_body();
+        } || '';
+    }
+    else { # text
+        open my $slurp, '<:raw', $file
+            or warnf('Cannot open %s for reading: %s', $file, $!), return '';
+        local $/;
+        return <$slurp>;
+    }
+}
+
+sub changed {
+    my($self, $file) = @_;
+
+    $file = File::Spec->rel2abs($file);
+    my $old = $self->snapshot->{$file} or return;
+    my($type, $old_content) = @{$old};
+    my $cur_content         = $self->slurp($file, $type);
+
+    return if $cur_content eq ''; # workaround vim's empty files
+    return if $old_content eq $cur_content;
+
+    $self->snapshot->{$file}[1] = $cur_content; # update
+
+    return $self->do_diff($old_content, $cur_content);
+}
+
+
+sub do_diff { # (self, old, new)
+    my $self = shift;
+    my @x = split /\n/, shift;
+    my @y = split /\n/, shift;
+
+    my $diffs = diff(\@x, \@y);
+
+    my $s = '';
+    foreach my $diff(@{$diffs}) {
+        foreach my $d(@{$diff}) {
+            my($status, $line, $content) = @{$d};
+            $status = ($status eq '-' ? '<' : '>');
+            $s .= sprintf "%03d:%s %s\n", $line, $status, $content;
+        }
+    }
+    return $s;
+}
+
 no Mouse;
-1;
+__PACKAGE__->meta->make_immutable();
 __END__
 
 =head1 NAME
 
-Service::DiffNotify - Growl for changed files
+Service::DiffNotify - Watch a directory and make notifications
 
 =head1 VERSION
 
@@ -89,6 +174,8 @@ This document describes Service::DiffNotify version 0.01.
     use Service::DiffNotify;
 
     Service::DiffNotify->new(dir => '.')->run();
+
+    # or type `niff .`
 
 =head1 DESCRIPTION
 

@@ -75,7 +75,7 @@ sub run {
             my $diff = $self->changed($path) or next;
 
             infof 'changed: %s', $path;
-            $self->notify(changed => $path, $diff);
+            $self->notify(changed => File::Spec->abs2rel($path), $diff);
         }
     }) while 1;
 
@@ -153,8 +153,9 @@ sub do_diff { # (self, old, new)
     foreach my $diff(@{$diffs}) {
         foreach my $d(@{$diff}) {
             my($status, $line, $content) = @{$d};
-            $status = ($status eq '-' ? '<' : '>');
-            $s .= sprintf "%03d:%s %s\n", $line, $status, $content;
+            next if $status ne '+'; # keep it simple
+            $content =~ s/\A \s+ //xms; # trim
+            $s .= sprintf "%03d:\n%s\n", $line, $content;
         }
     }
     return $s;
@@ -166,7 +167,7 @@ __END__
 
 =head1 NAME
 
-Service::DiffNotify - Watch a directory and make notifications
+Service::DiffNotify - Watch a directory and make notifications on changes
 
 =head1 VERSION
 
@@ -182,11 +183,8 @@ This document describes Service::DiffNotify version 0.01.
 
 =head1 DESCRIPTION
 
-# TODO
-
-=head1 INTERFACE
-
-# TODO
+This module provides a service which watches a directory and makes
+notifications on changes as growls.
 
 =head1 DEPENDENCIES
 

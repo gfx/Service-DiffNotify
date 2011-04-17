@@ -1,0 +1,18 @@
+.shipit
+Changes
+file/foo.doc
+file/xyzzy.txt
+lib/Service/DiffNotify.pm
+Makefile.PL
+MANIFEST			This list of files
+MANIFEST.SKIP
+META.yml
+README
+script/niff.pl
+t/000_load.t
+t/001_basic.t
+xt/perlcritic.t
+xt/pod.t
+xt/podcoverage.t
+xt/podspell.t
+xt/podsynopsis.t

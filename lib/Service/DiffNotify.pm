@@ -10,6 +10,8 @@ use Growl::Any;
 use File::Find qw(find);
 use File::Spec;
 use Text::Extract::Word;
+use Encode qw(decode);
+use Encode::Guess qw(euc-jp shiftjis 7bit-jis);
 
 use Log::Minimal qw(infof warnf debugf);
 
@@ -111,7 +113,9 @@ sub make_snapshot {
 sub slurp {
     my($self, $file, $type) = @_;
 
-    if($type eq 'word' && -s $file) {
+    return '' unless -s $file;
+
+    if($type eq 'word') {
         return eval {
             my $doc = Text::Extract::Word->new($file);
             return $doc->get_body();
@@ -121,7 +125,7 @@ sub slurp {
         open my $slurp, '<:raw', $file
             or warnf('Cannot open %s for reading: %s', $file, $!), return '';
         local $/;
-        return <$slurp>;
+        return decode( guess => <$slurp> );
     }
 }
 
